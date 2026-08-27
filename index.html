@@ -51,7 +51,7 @@ document.addEventListener('click',function(event){
 	document.addEventListener('input',function(event){if(event.target.closest('.block'))saveExternal()});
 	document.addEventListener('change',function(event){if(event.target.closest('.block'))saveExternal()});
 	document.addEventListener('paste',function(){saveExternal()});
-	document.addEventListener('click',function(event){if(event.target.closest('#add,.custom,.delete,.move'))setTimeout(saveExternal,150)});
+	document.addEventListener('click',function(event){if(event.target.closest('.custom,.delete,.move'))setTimeout(saveExternal,150)});
 }());
 </script><script>
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))}
