@@ -88,16 +88,21 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	const planner=()=>{try{return JSON.parse(localStorage.getItem('blockboard.planner.v4'))||{assignments:[],courses:[],types:[],marks:{}}}catch(error){return{assignments:[],courses:[],types:[],marks:{}}}};
 	const request=(path,options={})=>fetch(supabaseUrl+path,{...options,headers:{apikey:supabaseKey,Authorization:'Bearer '+(getSession()?.access_token||supabaseKey),'Content-Type':'application/json',...(options.headers||{})}});
 	function showLogin(){
-		const redirect=encodeURIComponent(location.origin+location.pathname);
-		location.href=supabaseUrl+'/auth/v1/authorize?provider=github&redirect_to='+redirect;
+		const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);const verifier=Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');
+		crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)).then(hash=>{const challenge=btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');sessionStorage.setItem('blockboard.pkce.verifier',verifier);const redirect=encodeURIComponent(location.origin+location.pathname);location.href=supabaseUrl+'/auth/v1/authorize?provider=github&redirect_to='+redirect+'&code_challenge='+challenge+'&code_challenge_method=S256'});
 	}
 	async function restoreOAuthSession(){
 		const hash=new URLSearchParams(location.hash.slice(1));
 		const accessToken=hash.get('access_token');
-		if(!accessToken)return;
-		const response=await fetch(supabaseUrl+'/auth/v1/user',{headers:{apikey:supabaseKey,Authorization:'Bearer '+accessToken}});
+		const code=new URLSearchParams(location.search).get('code');
+		if(!accessToken&&!code)return;
+		if(code){const verifier=sessionStorage.getItem('blockboard.pkce.verifier');if(!verifier)throw new Error('Missing OAuth verifier');const tokenResponse=await fetch(supabaseUrl+'/auth/v1/token',{method:'POST',headers:{apikey:supabaseKey,'Content-Type':'application/json'},body:JSON.stringify({grant_type:'pkce',auth_code:code,code_verifier:verifier})});if(!tokenResponse.ok)throw new Error('GitHub code exchange failed');const session=await tokenResponse.json();setSession(session);sessionStorage.removeItem('blockboard.pkce.verifier');history.replaceState({},document.title,location.pathname)}
+		const session=getSession();
+		const token=session?.access_token||accessToken;
+		if(!token)return;
+		const response=await fetch(supabaseUrl+'/auth/v1/user',{headers:{apikey:supabaseKey,Authorization:'Bearer '+token}});
 		if(!response.ok)throw new Error('GitHub session could not be verified');
-		setSession({access_token:accessToken,refresh_token:hash.get('refresh_token'),user:await response.json()});
+		setSession({...(session||{}),access_token:token,refresh_token:session?.refresh_token||hash.get('refresh_token'),user:await response.json()});
 		history.replaceState({},document.title,location.pathname+location.search);
 		status.textContent='Cloud sync on';
 		await pull();
@@ -107,7 +112,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		const response=await request('/rest/v1/blockboard_data?select=payload&user_id=eq.'+session.user.id);
 		if(!response.ok)return;
 		const rows=await response.json();
-		if(rows[0]?.payload){localStorage.setItem('blockboard.planner.v4',JSON.stringify(rows[0].payload));location.reload()}
+		if(rows[0]?.payload){const remote=JSON.stringify(rows[0].payload);if(localStorage.getItem('blockboard.planner.v4')!==remote){localStorage.setItem('blockboard.planner.v4',remote);if(!sessionStorage.getItem('blockboard.remote-loaded')){sessionStorage.setItem('blockboard.remote-loaded','1');location.reload()}}else{sessionStorage.removeItem('blockboard.remote-loaded')}}
 		else push();
 	}
 	async function push(){
