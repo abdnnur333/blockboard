@@ -77,6 +77,11 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	const supabaseKey='sb_publishable_SwLyySBZKwQWvxcQNYL54A_NcuqqQ15';
 	const authKey='blockboard.supabase.auth';
 	let syncTimer;
+	function stableStringify(value){
+		if(Array.isArray(value))return'['+value.map(stableStringify).join(',')+']';
+		if(value&&typeof value==='object')return'{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableStringify(value[k])).join(',')+'}';
+		return JSON.stringify(value);
+	}
 	const status=document.createElement('button');
 	status.id='cloud-sync';
 	status.className='custom';
@@ -112,7 +117,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		const response=await request('/rest/v1/blockboard_data?select=payload&user_id=eq.'+session.user.id);
 		if(!response.ok)return;
 		const rows=await response.json();
-		if(rows[0]?.payload){const remoteStr=JSON.stringify(rows[0].payload);let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}const localStr=JSON.stringify(localParsed);if(localStr!==remoteStr){localStorage.setItem('blockboard.planner.v4',remoteStr);location.reload()}}
+		if(rows[0]?.payload){const remoteData=rows[0].payload;let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}if(stableStringify(localParsed)!==stableStringify(remoteData)){localStorage.setItem('blockboard.planner.v4',JSON.stringify(remoteData));location.reload()}}
 		else push();
 	}
 	async function push(){
