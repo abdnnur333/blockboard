@@ -112,7 +112,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		const response=await request('/rest/v1/blockboard_data?select=payload&user_id=eq.'+session.user.id);
 		if(!response.ok)return;
 		const rows=await response.json();
-		if(rows[0]?.payload){const remote=JSON.stringify(rows[0].payload);if(localStorage.getItem('blockboard.planner.v4')!==remote){localStorage.setItem('blockboard.planner.v4',remote);if(!sessionStorage.getItem('blockboard.remote-loaded')){sessionStorage.setItem('blockboard.remote-loaded','1');location.reload()}}else{sessionStorage.removeItem('blockboard.remote-loaded')}}
+		if(rows[0]?.payload){const remoteStr=JSON.stringify(rows[0].payload);let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}const localStr=JSON.stringify(localParsed);if(localStr!==remoteStr){localStorage.setItem('blockboard.planner.v4',remoteStr);location.reload()}}
 		else push();
 	}
 	async function push(){
