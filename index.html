@@ -131,14 +131,15 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	async function pull(){
 		const session=getSession();if(!session?.user?.id)return;
 		const response=await request('/rest/v1/blockboard_data?select=payload&user_id=eq.'+session.user.id);
-		if(!response.ok)return;
+		if(!response.ok){console.warn('Blockboard: cloud pull failed',response.status,await response.text().catch(()=>''));return}
 		const rows=await response.json();
 		if(rows[0]?.payload){const remoteData=rows[0].payload;let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}if(stableStringify(localParsed)!==stableStringify(remoteData)){window.blockboardEmit&&window.blockboardEmit('Before cloud sync overwrite');localStorage.setItem('blockboard.planner.v4',JSON.stringify(remoteData));location.reload()}}
 		else push();
 	}
 	async function push(){
 		const session=getSession();if(!session?.user?.id)return;
-		await request('/rest/v1/blockboard_data?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:session.user.id,payload:planner(),updated_at:new Date().toISOString()})});
+		const response=await request('/rest/v1/blockboard_data?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:session.user.id,payload:planner(),updated_at:new Date().toISOString()})});
+		if(!response.ok)console.warn('Blockboard: cloud push failed',response.status,await response.text().catch(()=>''));
 	}
 	function queuePush(){clearTimeout(syncTimer);syncTimer=setTimeout(push,500)}
 	window.blockboardCloud={isConnected:()=>!!getSession()?.user?.id,getSession,request,signIn:showLogin};
@@ -161,7 +162,10 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	}
 	async function prune(userId){
 		const cutoff=new Date(Date.now()-RETENTION_DAYS*24*60*60*1000).toISOString();
-		try{await cloud().request('/rest/v1/'+TABLE+'?user_id=eq.'+userId+'&created_at=lt.'+encodeURIComponent(cutoff),{method:'DELETE'})}catch(e){}
+		try{
+			const response=await cloud().request('/rest/v1/'+TABLE+'?user_id=eq.'+userId+'&created_at=lt.'+encodeURIComponent(cutoff),{method:'DELETE'});
+			if(!response.ok)console.warn('Blockboard: version prune failed',response.status,await response.text().catch(()=>''));
+		}catch(e){console.warn('Blockboard: version prune failed',e)}
 	}
 	async function snapshot(label){
 		if(!cloud()||!cloud().isConnected())return;
@@ -169,10 +173,11 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		try{
 			const raw=localStorage.getItem('blockboard.planner.v4');
 			const data=raw?JSON.parse(raw):{assignments:[],courses:[],types:[],marks:{}};
-			await cloud().request('/rest/v1/'+TABLE,{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:userId,label:label||'Updated',payload:normalize(data)})});
+			const response=await cloud().request('/rest/v1/'+TABLE,{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:userId,label:label||'Updated',payload:normalize(data)})});
+			if(!response.ok)console.warn('Blockboard: version save failed',response.status,await response.text().catch(()=>''));
 			prune(userId);
 			if(!overlay.hidden)renderList();
-		}catch(e){}
+		}catch(e){console.warn('Blockboard: version save failed',e)}
 	}
 	document.addEventListener('blockboard:changed',e=>snapshot(e.detail&&e.detail.label));
 
