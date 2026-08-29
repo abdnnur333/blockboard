@@ -143,7 +143,8 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		try{
 			const raw=localStorage.getItem('blockboard.planner.v4');
 			const data=raw?JSON.parse(raw):{assignments:[],courses:[],types:[],marks:{}};
-			await cloud().request('/rest/v1/'+TABLE,{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:userId,label:label||'Updated',payload:normalize(data)})});
+			const response=await cloud().request('/rest/v1/'+TABLE,{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:userId,label:label||'Updated',payload:normalize(data)})});
+			if(!response.ok)throw new Error('History save failed ('+response.status+')');
 			prune(userId);
 			if(!overlay.hidden)renderList();
 		}catch(e){}
@@ -178,11 +179,12 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		try{
 			const userId=cloud().getSession().user.id;
 			const response=await cloud().request('/rest/v1/'+TABLE+'?select=id,label,payload,created_at&user_id=eq.'+userId+'&order=created_at.desc&limit=200');
-			const list=response.ok?await response.json():[];
+			if(!response.ok)throw new Error('History load failed ('+response.status+')');
+			const list=await response.json();
 			holder.innerHTML=list.length?list.map(v=>'<div style="border:1px solid var(--line);border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-weight:800">'+esc(v.label)+'</div><div style="color:var(--muted);font-size:11px">'+fmt(v.created_at)+' · '+(((v.payload&&v.payload.assignments)||[]).length)+' block(s)</div></div><button class="custom" data-restore="'+v.id+'" type="button">Restore</button></div>').join(''):'<div style="color:var(--muted);text-align:center;padding:20px">No versions yet.</div>';
 			holder.querySelectorAll('[data-restore]').forEach(b=>{b.onclick=()=>{const found=list.find(v=>String(v.id)===b.dataset.restore);if(found)restore(found)}});
 		}catch(e){
-			holder.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Could not load version history.</div>';
+			holder.innerHTML='<div style="color:var(--red);text-align:center;padding:20px">Could not load version history ('+esc(e.message)+'). Run supabase-setup.sql and reconnect cloud sync.</div>';
 		}
 	}
 	function restore(found){
