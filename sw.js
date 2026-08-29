@@ -25,6 +25,10 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
+  // ব্রাউজার এক্সটেনশন বা অন্য কোনো unsupported scheme (chrome-extension:// ইত্যাদি)
+  // থেকে আসা রিকোয়েস্ট Cache API সাপোর্ট করে না, তাই সেগুলো এড়িয়ে যাওয়া হচ্ছে
+  if (!event.request.url.startsWith('http')) return;
+
   // Navigation (HTML) request → network-first, cache শুধু fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(

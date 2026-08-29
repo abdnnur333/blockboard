@@ -128,20 +128,41 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 			cleanUrl();
 		}
 	}
+	const LAST_SYNC_KEY='blockboard.lastSyncedAt';
+	const getLastSynced=()=>localStorage.getItem(LAST_SYNC_KEY)||'1970-01-01T00:00:00.000Z';
+	const setLastSynced=iso=>localStorage.setItem(LAST_SYNC_KEY,iso);
 	async function pull(){
 		const session=getSession();if(!session?.user?.id)return;
-		const response=await request('/rest/v1/blockboard_data?select=payload&user_id=eq.'+session.user.id);
+		const response=await request('/rest/v1/blockboard_data?select=payload,updated_at&user_id=eq.'+session.user.id);
 		if(!response.ok){console.warn('Blockboard: cloud pull failed',response.status,await response.text().catch(()=>''));return}
 		const rows=await response.json();
-		if(rows[0]?.payload){const remoteData=rows[0].payload;let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}if(stableStringify(localParsed)!==stableStringify(remoteData)){window.blockboardEmit&&window.blockboardEmit('Before cloud sync overwrite');localStorage.setItem('blockboard.planner.v4',JSON.stringify(remoteData));location.reload()}}
-		else push();
+		if(rows[0]&&rows[0].payload){
+			const remoteData=rows[0].payload;
+			const remoteUpdatedAt=rows[0].updated_at||'1970-01-01T00:00:00.000Z';
+			if(remoteUpdatedAt>getLastSynced()){
+				let localParsed;try{localParsed=JSON.parse(localStorage.getItem('blockboard.planner.v4')||'{}')}catch(e){localParsed={}}
+				if(stableStringify(localParsed)!==stableStringify(remoteData)){
+					window.blockboardEmit&&window.blockboardEmit('Before cloud sync overwrite');
+					localStorage.setItem('blockboard.planner.v4',JSON.stringify(remoteData));
+					setLastSynced(remoteUpdatedAt);
+					location.reload();
+					return;
+				}
+				setLastSynced(remoteUpdatedAt);
+			}else{
+				push();
+			}
+		}else push();
 	}
-	async function push(){
+	async function push(extra){
 		const session=getSession();if(!session?.user?.id)return;
-		const response=await request('/rest/v1/blockboard_data?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:session.user.id,payload:planner(),updated_at:new Date().toISOString()})});
+		const nowIso=new Date().toISOString();
+		const response=await request('/rest/v1/blockboard_data?on_conflict=user_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:session.user.id,payload:planner(),updated_at:nowIso}),...(extra||{})});
 		if(!response.ok)console.warn('Blockboard: cloud push failed',response.status,await response.text().catch(()=>''));
+		else setLastSynced(nowIso);
 	}
 	function queuePush(){clearTimeout(syncTimer);syncTimer=setTimeout(push,500)}
+	document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){clearTimeout(syncTimer);push({keepalive:true})}});
 	window.blockboardCloud={isConnected:()=>!!getSession()?.user?.id,getSession,request,signIn:showLogin};
 	status.onclick=showLogin;
 	document.addEventListener('input',event=>{if(event.target.closest('.block'))queuePush()});
