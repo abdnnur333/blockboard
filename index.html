@@ -120,7 +120,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	document.addEventListener('input',event=>{if(event.target.closest('.block'))queuePush()});
 	document.addEventListener('change',event=>{if(event.target.closest('.block'))queuePush()});
 	document.addEventListener('click',event=>{if(event.target.closest('#add,.custom,.move,.delete'))setTimeout(queuePush,200)});
-	document.addEventListener('blockboard:changed',()=>queuePush());
+	document.addEventListener('blockboard:changed',event=>{if(event.detail?.label==='Data imported')push();else queuePush()});
 	if(getSession()?.access_token){status.textContent='Cloud sync on';pull()}
 	else restoreOAuthSession();
 }());
