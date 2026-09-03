@@ -43,14 +43,51 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	const today=()=>{const now=new Date();return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')};
 	const fileName=()=>{const now=new Date();return 'Blockboard_'+today()+'_'+String(now.getHours()).padStart(2,'0')+'-'+String(now.getMinutes()).padStart(2,'0')+'-'+String(now.getSeconds()).padStart(2,'0')+'.json'};
 	const downloadBackup=()=>{const blob=new Blob([JSON.stringify(read(),null,2)],{type:'application/json'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=fileName();link.click();URL.revokeObjectURL(link.href)};
-	const chooseFolder=async()=>{if(!window.showDirectoryPicker){alert('এই browser নির্দিষ্ট folder-এ সরাসরি save সমর্থন করে না। Backup download হবে, তারপর আপনি folder বেছে নিতে পারবেন।');return false}try{backupFolder=await window.showDirectoryPicker({mode:'readwrite'});return true}catch(error){return false}};
-	const saveBackup=async()=>{if(backupFolder){try{const permission=await backupFolder.requestPermission({mode:'readwrite'});if(permission!=='granted')throw new Error('Folder permission denied');const file=await backupFolder.getFileHandle(fileName(),{create:true});const writable=await file.createWritable();await writable.write(JSON.stringify(read(),null,2));await writable.close();alert('Backup সংরক্ষণ হয়েছে।');return true}catch(error){backupFolder=null}}
-		downloadBackup();alert('Backup download হয়েছে। নির্দিষ্ট folder-এ রাখতে browser-এর download location ব্যবহার করুন।');return true};
-	const dailyBackup=async(debug=false)=>{const seen=localStorage.getItem('blockboard.backupPromptDate');if(!debug&&seen===today())return;if(!confirm(debug?'[Debug] আজকের Blockboard backup save করতে চান?':'আজকের Blockboard backup save করতে চান?')){if(!debug)localStorage.setItem('blockboard.backupPromptDate',today());return}if(!backupFolder&&!await chooseFolder())return;await saveBackup();if(!debug)localStorage.setItem('blockboard.backupPromptDate',today())};
-	document.querySelector('#choose-backup-folder').onclick=async()=>{if(await chooseFolder())alert('Backup folder নির্বাচিত হয়েছে। পরের backup এই folder-এ যাবে।')};
-	document.querySelector('#debug-backup').onclick=()=>dailyBackup(true);
-	document.querySelector('#export-data').onclick=saveBackup;
-	setTimeout(dailyBackup,300);
+	function idbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open('blockboard-fs',1);req.onupgradeneeded=()=>{req.result.createObjectStore('handles')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+	async function idbSet(k,v){try{const db=await idbOpen();return new Promise((resolve,reject)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(v,k);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error)})}catch(e){}}
+	async function idbGet(k){try{const db=await idbOpen();return new Promise((resolve,reject)=>{const tx=db.transaction('handles','readonly');const req=tx.objectStore('handles').get(k);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}catch(e){return null}}
+	const chooseFolder=async()=>{if(!window.showDirectoryPicker){alert('এই browser নির্দিষ্ট folder-এ সরাসরি save সমর্থন করে না। Backup download হবে, তারপর আপনি folder বেছে নিতে পারবেন।');return false}try{backupFolder=await window.showDirectoryPicker({mode:'readwrite'});await idbSet('backupFolder',backupFolder);return true}catch(error){return false}};
+	async function ensureFolderPermission(){
+		if(backupFolder){
+			try{if(await backupFolder.queryPermission({mode:'readwrite'})==='granted')return true}catch(e){}
+			try{if(await backupFolder.requestPermission({mode:'readwrite'})==='granted')return true}catch(e){}
+			backupFolder=null;
+		}
+		if(window.showDirectoryPicker){
+			const saved=await idbGet('backupFolder');
+			if(saved){
+				try{
+					if(await saved.queryPermission({mode:'readwrite'})==='granted'){backupFolder=saved;return true}
+					if(await saved.requestPermission({mode:'readwrite'})==='granted'){backupFolder=saved;return true}
+				}catch(e){}
+			}
+		}
+		return await chooseFolder();
+	}
+	const saveBackup=async()=>{if(backupFolder){try{const permission=await backupFolder.requestPermission({mode:'readwrite'});if(permission!=='granted')throw new Error('Folder permission denied');const file=await backupFolder.getFileHandle(fileName(),{create:true});const writable=await file.createWritable();await writable.write(JSON.stringify(read(),null,2));await writable.close();return true}catch(error){backupFolder=null}}
+		downloadBackup();return false};
+	const backupBanner=document.createElement('div');
+	backupBanner.className='sort-warning';backupBanner.hidden=true;
+	backupBanner.innerHTML='<span>💾 আজকের Blockboard backup save করবেন?</span><div style="display:flex;gap:8px"><button class="custom" id="backup-yes" type="button">Save backup</button><button class="custom" id="backup-no" type="button">Not today</button></div>';
+	toolbar.insertAdjacentElement('afterend',backupBanner);
+	function markDoneToday(){localStorage.setItem('blockboard.backupPromptDate',today())}
+	function maybeShowBanner(){if(localStorage.getItem('blockboard.backupPromptDate')!==today())backupBanner.hidden=false}
+	backupBanner.querySelector('#backup-yes').onclick=async()=>{
+		const ok=await ensureFolderPermission();
+		if(ok){const saved=await saveBackup();alert(saved?'Backup সংরক্ষণ হয়েছে।':'Backup download হয়েছে। নির্দিষ্ট folder-এ রাখতে browser-এর download location ব্যবহার করুন।')}
+		markDoneToday();backupBanner.hidden=true;
+	};
+	backupBanner.querySelector('#backup-no').onclick=()=>{markDoneToday();backupBanner.hidden=true};
+	document.querySelector('#choose-backup-folder').onclick=async()=>{if(await chooseFolder())alert('Backup folder নির্বাচিত হয়েছে। পরের backup এই folder-এ যাবে।')};
+	document.querySelector('#debug-backup').onclick=async()=>{const ok=await ensureFolderPermission();if(ok){const saved=await saveBackup();alert(saved?'[Debug] Backup সংরক্ষণ হয়েছে।':'[Debug] Backup download হয়েছে।')}};
+	document.querySelector('#export-data').onclick=async()=>{const ok=await ensureFolderPermission();if(ok)await saveBackup()};
+	(async()=>{
+		if(window.showDirectoryPicker){
+			const saved=await idbGet('backupFolder');
+			if(saved){try{if(await saved.queryPermission({mode:'readwrite'})==='granted')backupFolder=saved}catch(e){}}
+		}
+		maybeShowBanner();
+	})();
 	document.querySelector('#import-data').onclick=()=>document.querySelector('#import-file').click();
 	document.querySelector('#import-file').onchange=event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result),current=read();window.blockboardEmit?.('Before import');const merged={assignments:[...(current.assignments||[])],courses:[...(current.courses||[])],types:[...(current.types||[])],marks:{...(current.marks||{})}};(incoming.assignments||[]).forEach(item=>{if(!merged.assignments.some(existing=>existing.id===item.id))merged.assignments.push(item)});[...(incoming.courses||[])].forEach(item=>{if(!merged.courses.includes(item))merged.courses.push(item)});[...(incoming.types||[])].forEach(item=>{if(!merged.types.includes(item))merged.types.push(item)});Object.assign(merged.marks,incoming.marks||{});localStorage.setItem(key,JSON.stringify(merged));window.BlockboardApp?.reload();window.blockboardEmit?.('Data imported');event.target.value=''}catch(error){alert('This is not a valid Blockboard backup file.')}};reader.readAsText(file)};
 }());
