@@ -188,6 +188,9 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	document.addEventListener('input',event=>{if(event.target.closest('.block')){changed('Edited '+(event.target.name||event.target.className||'block'));queuePush()}});
 	document.addEventListener('change',event=>{if(event.target.closest('.block')){changed('Changed '+(event.target.name||event.target.className||'block'));queuePush()}});
 	document.addEventListener('click',event=>{if(event.target.closest('#add,.custom,.move,.delete'))setTimeout(queuePush,200)});
+	document.addEventListener('click',event=>{const target=event.target.closest('#add,.move,.delete');if(!target)return;const label=target.id==='add'?'Added a new block':target.classList.contains('move')?'Moved a block':'Deleted a block';changed(label);setTimeout(queuePush,200)});
+	document.addEventListener('change',event=>{if(event.target.matches('input[type="file"]')){changed('Uploaded a proof photo');queuePush()}});
+	document.querySelector('#compare-file').addEventListener('change',()=>{setTimeout(()=>{const overlay=[...document.body.children].find(element=>element.style.zIndex==='10');const content=overlay?.firstElementChild?.lastElementChild;if(!content)return;content.style.display='grid';content.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';content.style.gap='20px';content.querySelectorAll(':scope > section').forEach((section,index)=>{if(index===2)section.style.gridColumn='1 / -1'});const style=document.createElement('style');style.textContent='@media (max-width: 700px){.comparison-content{grid-template-columns:1fr!important}}';content.classList.add('comparison-content');document.head.appendChild(style)},0)});
 	document.addEventListener('blockboard:changed',()=>queuePush());
 	if(getHash()){status.textContent='Cloud sync on';pull()}
 }());
