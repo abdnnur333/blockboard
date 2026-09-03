@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blockboard-shell-v7';
+const CACHE_NAME = 'blockboard-shell-v8';
 const APP_FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {
