@@ -39,6 +39,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	controls.innerHTML='<button class="custom" id="export-data" type="button">Export data</button><button class="custom" id="choose-backup-folder" type="button">Choose backup folder</button><button class="custom" id="debug-backup" type="button">Debug backup</button><button class="custom" id="compare-data" type="button">Compare JSON</button><button class="custom" id="import-data" type="button">Import data</button><input id="import-file" type="file" accept="application/json,.json" hidden><input id="compare-file" type="file" accept="application/json,.json" hidden>';
 	toolbar.appendChild(controls);
 	const read=()=>{try{return JSON.parse(localStorage.getItem(key))||{assignments:[],courses:[],types:[],marks:{}}}catch(error){return{assignments:[],courses:[],types:[],marks:{}}}};
+	const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 	let backupFolder=null;
 	const today=()=>{const now=new Date();return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')};
 	const fileName=()=>{const now=new Date();return 'Blockboard_'+today()+'_'+String(now.getHours()).padStart(2,'0')+'-'+String(now.getMinutes()).padStart(2,'0')+'-'+String(now.getSeconds()).padStart(2,'0')+'.json'};
