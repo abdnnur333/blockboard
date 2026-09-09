@@ -115,10 +115,6 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		if(value&&typeof value==='object')return'{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableStringify(value[k])).join(',')+'}';
 		return JSON.stringify(value);
 	}
-	async function sha256Hex(text){
-		const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
-		return Array.from(new Uint8Array(buf),b=>b.toString(16).padStart(2,'0')).join('');
-	}
 	const PASS_KEY='blockboard.passcodeHash';
 	const getHash=()=>localStorage.getItem(PASS_KEY);
 	const setHash=h=>localStorage.setItem(PASS_KEY,h);
@@ -134,7 +130,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 	const dialog=document.createElement('div');
 	dialog.id='passcode-dialog';dialog.hidden=true;
 	dialog.style='position:fixed;inset:0;z-index:6;display:grid;place-items:center;background:#000b;padding:20px';
-	dialog.innerHTML='<form id="passcode-form" style="width:min(340px,100%);padding:22px;border:1px solid var(--line);border-radius:8px;background:var(--panel)"><h2 style="font:400 22px Georgia,serif;margin:0 0 12px">Cloud sync passcode</h2><p style="color:var(--muted);font-size:12px;margin:0 0 14px;line-height:1.5">Same passcode on any device shows and edits the same data.</p><input id="passcode-input" type="password" required placeholder="Passcode" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--text);margin-bottom:14px"><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" id="passcode-cancel" class="custom">Cancel</button><button class="primary">Connect</button></div></form>';
+	dialog.innerHTML='<form id="passcode-form" style="width:min(340px,100%);padding:22px;border:1px solid var(--line);border-radius:8px;background:var(--panel)"><h2 style="font:400 22px Georgia,serif;margin:0 0 12px">Cloud sync passcode</h2><p style="color:var(--muted);font-size:12px;margin:0 0 14px;line-height:1.5">Same passcode on any device shows and edits the same data. Stored as plain text — keep it simple, no need to remember a complex one.</p><input id="passcode-input" type="text" required placeholder="Passcode" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--text);margin-bottom:14px"><div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" id="passcode-cancel" class="custom">Cancel</button><button class="primary">Connect</button></div></form>';
 	document.body.appendChild(dialog);
 	dialog.querySelector('#passcode-cancel').onclick=()=>dialog.hidden=true;
 	dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.hidden=true});
@@ -142,7 +138,7 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 		e.preventDefault();
 		const entered=dialog.querySelector('#passcode-input').value;
 		if(!entered)return;
-		setHash(await sha256Hex(entered));
+		setHash(entered);
 		dialog.hidden=true;
 		status.textContent='Cloud sync on';
 		await pull();
