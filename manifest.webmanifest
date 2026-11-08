@@ -1,18 +1,19 @@
 {
+  "id": "./index.html",
   "name": "Blockboard Assignment Planner",
   "short_name": "Blockboard",
   "description": "Screenshot-first assignment planner with deadlines and booked preparation days.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#090b0e",
   "theme_color": "#090b0e",
   "orientation": "any",
+  "categories": ["productivity", "education"],
+  "shortcuts": [
+    { "name": "Add block", "short_name": "Add", "url": "./index.html?add=1" }
+  ],
   "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
